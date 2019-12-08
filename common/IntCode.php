@@ -5,6 +5,8 @@ namespace IntCode;
 use Exception;
 use IntCode\Operation\Operation;
 
+class InputNecessaryException extends Exception {}
+
 class IntCode
 {
     /**
@@ -13,7 +15,7 @@ class IntCode
     protected $memory;
 
     /**
-     * @var int
+     * @var int[]
      */
     protected $input;
 
@@ -21,6 +23,8 @@ class IntCode
      * @var int[]
      */
     protected $output;
+
+    protected $hasHaltOutput = false;
 
     protected $operations = [
         1  => 'Addition',
@@ -34,49 +38,78 @@ class IntCode
         99 => 'End',
     ];
 
-    public function __construct(string $code, string $input = null)
+    protected $address;
+    protected $running;
+
+    public function __construct(string $code, $input = null)
     {
         $this->init($code, $input);
     }
 
-    public function init(string $code, string $input = null)
+    public function init(string $code, $input = null)
     {
         $this->memory = explode(',', $code);
-        $this->input = $input;
+        $this->input = (array)$input;
         $this->output = null;
+        $this->address = 0;
+        $this->running = false;
+    }
+
+    public function setInput(array $input)
+    {
+        $this->input = $input;
     }
 
     /**
      * Run the int-code instructions!
      *
      * @throws Exception
+     * @throws InputNecessaryException
      */
-    public function run()
+    public function run($resetAddress = false)
     {
-        $address = 0;
+        if ($resetAddress) {
+            $this->address = 0;
+        }
+        $this->running = true;
+        $hasOutput = false;
 
         // Do as long as the operation doesn't halt the programme
         do {
             // Prepare the operation & arguments
-            $opCode = $this->getMemoryValueAt($address);
+            $opCode = $this->getMemoryValueAt($this->address);
             $operation = $this->getOperation($opCode);
-            $arguments = $this->getArguments($operation, $opCode, $address);
+            $arguments = $this->getArguments($operation, $opCode, $this->address);
 
             // Run the operation
             $operation->execute($arguments);
-            echo $address . ': ' . get_class($operation) . "\n";
+            echo $this->address . ': ' . get_class($operation) . "\n";
 
             // Move the address pointer
-            $address = $operation->getNextAddress($address);
+            $this->address = $operation->getNextAddress($this->address);
 
             // Add output
             if (!is_null($operation->getOutput())) {
                 $this->output[] = $operation->getOutput();
+                //echo "output: " . $operation->getOutput() . "\n";
+                $hasOutput = true;
+                throw new InputNecessaryException('jjii');
+            } elseif (!$operation->halt()) {
+                $hasOutput = false;
             }
         } while (!$operation->halt());
 
+        if ($hasOutput) {
+            $this->hasHaltOutput = true;
+        }
+
         // Print output
-        print_r($this->output);
+        //print_r($this->output);
+    }
+
+    public function isRunning()
+    {
+        return $this->running;
     }
 
     /**
@@ -141,13 +174,30 @@ class IntCode
         return $this->memory[$address];
     }
 
+    /**
+     * Get next input value
+     *
+     * @return int
+     * @throws Exception
+     */
     public function getInput(): int
     {
-        return $this->input;
+        if (!count($this->input)) {
+            throw new InputNecessaryException('No input left');
+        }
+        return array_shift($this->input);
     }
 
-    public function getOutput()
+    public function getOutput($onHalt = true)
     {
+        if ($onHalt) {
+            if ($this->hasHaltOutput) {
+                return end($this->output);
+            } else {
+                echo "no output";
+                return null;
+            }
+        }
         return $this->output;
     }
 }
