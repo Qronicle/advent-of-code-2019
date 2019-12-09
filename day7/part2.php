@@ -22,7 +22,9 @@ foreach ($combinations as $phases) {
     $finalOutput = 0;
     // Initialize intcode apps
     foreach ($phases as $phase) {
-        $phaseIntCodes[$phase] = new IntCode($code);
+        $intCode = new IntCode($code);
+        $intCode->setHaltOnOutput();
+        $phaseIntCodes[$phase] = $intCode;
     }
     $loop = 0;
     do {
@@ -32,15 +34,13 @@ foreach ($combinations as $phases) {
             $input = $intCode->isRunning() ? [$output] : [$phase, $output];
             $intCode->setInput($input);
             echo "Engine $p - phase $phase\n> Input: " . implode(', ', $input) . "\n";
-            try {
-                $intCode->run();
-                echo "> is halted: " . end($intCode->getOutput(false)) . "\n";
+            $intCode->run();
+            if (!is_null($intCode->getOutput())) {
+                $output = $intCode->getOutput();
+            }
+            if (!$intCode->isRunning()) {
+                echo "> Process stopped\n";
                 break 2;
-            } catch (InputNecessaryException $ex) {
-                // The intcode is now paused, we'll get back here later
-                echo "> Demands more input\n";
-                $output = $intCode->getOutput(false);
-                $output = end($output);
             }
         }
         echo "> Output: $output\n";

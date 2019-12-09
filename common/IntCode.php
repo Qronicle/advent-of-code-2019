@@ -24,7 +24,15 @@ class IntCode
      */
     protected $output;
 
+    /**
+     * @var bool
+     */
     protected $hasHaltOutput = false;
+
+    /**
+     * @var bool
+     */
+    protected $haltOnOutput = false;
 
     protected $operations = [
         1  => 'Addition',
@@ -38,8 +46,18 @@ class IntCode
         99 => 'End',
     ];
 
+    /**
+     * The current address
+     *
+     * @var int
+     */
     protected $address;
-    protected $running;
+
+    /**
+     * Whether the application is running
+     * @var bool
+     */
+    protected $running = false;
 
     public function __construct(string $code, $input = null)
     {
@@ -60,17 +78,24 @@ class IntCode
         $this->input = $input;
     }
 
+    public function setHaltOnOutput(bool $halt = true)
+    {
+        $this->haltOnOutput = $halt;
+    }
+
+    public function getHaltOnOutput()
+    {
+        return $this->haltOnOutput;
+    }
+
     /**
      * Run the int-code instructions!
      *
      * @throws Exception
      * @throws InputNecessaryException
      */
-    public function run($resetAddress = false)
+    public function run()
     {
-        if ($resetAddress) {
-            $this->address = 0;
-        }
         $this->running = true;
         $hasOutput = false;
 
@@ -83,7 +108,7 @@ class IntCode
 
             // Run the operation
             $operation->execute($arguments);
-            echo $this->address . ': ' . get_class($operation) . "\n";
+            //echo $this->address . ': ' . get_class($operation) . "\n";
 
             // Move the address pointer
             $this->address = $operation->getNextAddress($this->address);
@@ -93,7 +118,10 @@ class IntCode
                 $this->output[] = $operation->getOutput();
                 //echo "output: " . $operation->getOutput() . "\n";
                 $hasOutput = true;
-                throw new InputNecessaryException('jjii');
+                if ($this->haltOnOutput) {
+                    $this->hasHaltOutput = true;
+                    return;
+                }
             } elseif (!$operation->halt()) {
                 $hasOutput = false;
             }
@@ -102,6 +130,8 @@ class IntCode
         if ($hasOutput) {
             $this->hasHaltOutput = true;
         }
+
+        $this->running = false;
 
         // Print output
         //print_r($this->output);
@@ -194,7 +224,7 @@ class IntCode
             if ($this->hasHaltOutput) {
                 return end($this->output);
             } else {
-                echo "no output";
+                //echo "no output";
                 return null;
             }
         }
