@@ -34,6 +34,11 @@ class IntCode
      */
     protected $haltOnOutput = false;
 
+    /**
+     * @var int
+     */
+    protected $relativeBase = 0;
+
     protected $operations = [
         1  => 'Addition',
         2  => 'Multiplication',
@@ -43,6 +48,7 @@ class IntCode
         6  => 'JumpWhenFalse',
         7  => 'LessThan',
         8  => 'Equals',
+        9  => 'AdjustRelativeBase',
         99 => 'End',
     ];
 
@@ -55,6 +61,7 @@ class IntCode
 
     /**
      * Whether the application is running
+     *
      * @var bool
      */
     protected $running = false;
@@ -71,21 +78,7 @@ class IntCode
         $this->output = null;
         $this->address = 0;
         $this->running = false;
-    }
-
-    public function setInput(array $input)
-    {
-        $this->input = $input;
-    }
-
-    public function setHaltOnOutput(bool $halt = true)
-    {
-        $this->haltOnOutput = $halt;
-    }
-
-    public function getHaltOnOutput()
-    {
-        return $this->haltOnOutput;
+        $this->relativeBase = 0;
     }
 
     /**
@@ -137,7 +130,27 @@ class IntCode
         //print_r($this->output);
     }
 
-    public function isRunning()
+    public function setInput(array $input)
+    {
+        $this->input = $input;
+    }
+
+    public function setHaltOnOutput(bool $halt = true)
+    {
+        $this->haltOnOutput = $halt;
+    }
+
+    public function getHaltOnOutput(): bool
+    {
+        return $this->haltOnOutput;
+    }
+
+    public function getRelativeBase(): int
+    {
+        return $this->relativeBase;
+    }
+
+    public function isRunning(): bool
     {
         return $this->running;
     }
@@ -185,8 +198,11 @@ class IntCode
      */
     public function setMemoryValueAt(int $value, int $address)
     {
-        if (!isset($this->memory[$address])) {
+        if ($address < 0) {
             throw new Exception('Requested address out of bounds (for write)');
+        }
+        if (!isset($this->memory[$address])) {
+            $this->fillMemoryToAddress($address);
         }
         $this->memory[$address] = $value;
     }
@@ -198,10 +214,25 @@ class IntCode
      */
     public function getMemoryValueAt(int $address): int
     {
-        if (!isset($this->memory[$address])) {
+        if ($address < 0) {
             throw new Exception('Requested address out of bounds');
         }
+        if (!isset($this->memory[$address])) {
+            $this->fillMemoryToAddress($address);
+        }
         return $this->memory[$address];
+    }
+
+    protected function fillMemoryToAddress(int $address)
+    {
+        for ($i = count($this->memory); $i <= $address; $i++) {
+            $this->memory[$i] = 0;
+        }
+    }
+
+    public function increaseRelativeBase(int $increment)
+    {
+        $this->relativeBase += $increment;
     }
 
     /**
@@ -216,6 +247,11 @@ class IntCode
             throw new InputNecessaryException('No input left');
         }
         return array_shift($this->input);
+    }
+
+    public function getMemory($asString = false)
+    {
+        return $asString ? implode(',', $this->memory) : $this->memory;
     }
 
     public function getOutput($onHalt = true)
@@ -236,6 +272,7 @@ class Argument
 {
     const MODE_POSITION  = 0;
     const MODE_IMMEDIATE = 1;
+    const MODE_RELATIVE  = 2;
 
     public $value;
     public $mode;
@@ -286,6 +323,8 @@ abstract class Operation
                 return $argument->value;
             case Argument::MODE_POSITION:
                 return $this->intCode->getMemoryValueAt($argument->value);
+            case Argument::MODE_RELATIVE:
+                return $this->intCode->getMemoryValueAt($this->intCode->getRelativeBase() + $argument->value);
             default:
                 throw new Exception('Invalid Argument Mode set: ' . $argument->mode);
         }
@@ -302,10 +341,18 @@ abstract class Operation
      */
     public function setMemoryValueForArgument(int $value, Argument $argument)
     {
-        if ($argument->mode != Argument::MODE_POSITION) {
-            throw new Exception('Parameters that an instruction writes to can never be in immediate mode');
+        switch ($argument->mode) {
+            case Argument::MODE_IMMEDIATE:
+                throw new Exception('Parameters that an instruction writes to can never be in immediate mode');
+            case Argument::MODE_POSITION:
+                $this->intCode->setMemoryValueAt($value, $argument->value);
+                break;
+            case Argument::MODE_RELATIVE:
+                $this->intCode->setMemoryValueAt($value, $this->intCode->getRelativeBase() + $argument->value);
+                break;
+            default:
+                throw new Exception('Invalid Argument Mode set: ' . $argument->mode);
         }
-        $this->intCode->setMemoryValueAt($value, $argument->value);
     }
 
     /**
@@ -412,6 +459,7 @@ class JumpWhenTrue extends Operation
     protected $numArguments = 2;
 
     protected $jump = false;
+
     /**
      * @param Argument[] $args
      * @throws Exception
@@ -473,6 +521,21 @@ class Equals extends Operation
     {
         $value = $this->getArgumentValue($args[0]) == $this->getArgumentValue($args[1]) ? 1 : 0;
         $this->setMemoryValueForArgument($value, $args[2]);
+    }
+}
+
+class AdjustRelativeBase extends Operation
+{
+    protected $numArguments = 1;
+
+    /**
+     * @param Argument[] $args
+     * @throws Exception
+     */
+    public function execute(array $args = [])
+    {
+        $value = $this->getArgumentValue($args[0]);
+        $this->intCode->increaseRelativeBase($value);
     }
 }
 
