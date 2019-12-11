@@ -166,9 +166,12 @@ class IntCode
         if (!isset($this->operations[$opCode])) {
             throw new Exception('Unknown OP code encountered: ' . $opCode);
         }
-        $operationClass = '\\IntCode\\Operation\\' . $this->operations[$opCode];
-        $operation = new $operationClass($this);
-        return $operation;
+        if (!$this->operations[$opCode] instanceof Operation) {
+            $operationClass = '\\IntCode\\Operation\\' . $this->operations[$opCode];
+            $operation = new $operationClass($this);
+            $this->operations[$opCode] = $operation;
+        }
+        return $this->operations[$opCode];
     }
 
     /**
@@ -265,6 +268,11 @@ class IntCode
             }
         }
         return $this->output;
+    }
+
+    public function resetOutput()
+    {
+        $this->output = [];
     }
 }
 
@@ -468,6 +476,8 @@ class JumpWhenTrue extends Operation
     {
         if ($this->getArgumentValue($args[0]) != 0) {
             $this->jump = $this->getArgumentValue($args[1]);
+        } else {
+            $this->jump = false;
         }
     }
 
@@ -490,6 +500,8 @@ class JumpWhenFalse extends JumpWhenTrue
     {
         if ($this->getArgumentValue($args[0]) == 0) {
             $this->jump = $this->getArgumentValue($args[1]);
+        } else {
+            $this->jump = false;
         }
     }
 }
