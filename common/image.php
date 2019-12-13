@@ -11,11 +11,16 @@ function strtoimg(string $string, string $filename, int $pixelSize = 5, array $c
     $colors = [];
     foreach ($lines as $y => $line) {
         $line = str_split($line);
-        foreach ($line as $x => $color) {
-            if (isset($colors[$color])) {
-                $color = $colors[$color];
+        foreach ($line as $x => $colorIndex) {
+            if (isset($colors[$colorIndex])) {
+                $color = $colors[$colorIndex];
             } else {
-                $color = imagecolorallocate($img, round($color * 25), round($color * 25), round($color * 25));
+                if (isset($colorMap[$colorIndex])) {
+                    $color = imagecolorallocate($img, $colorMap[$colorIndex][0], $colorMap[$colorIndex][1], $colorMap[$colorIndex][2]);
+                } else {
+                    $color = imagecolorallocate($img, round($colorIndex * 25), round($colorIndex * 25), round($colorIndex * 25));
+                }
+                $colors[$colorIndex] = $color;
             }
             imagefilledrectangle($img, $x * $pixelSize, $y * $pixelSize, $x * $pixelSize + $pixelSize, $y * $pixelSize + $pixelSize, $color);
         }
