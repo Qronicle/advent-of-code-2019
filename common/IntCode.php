@@ -10,6 +10,12 @@ class InputNecessaryException extends Exception {}
 class IntCode
 {
     /**
+     * Used for reset
+     * @var string
+     */
+    protected $code;
+
+    /**
      * @var int[]
      */
     protected $memory;
@@ -73,12 +79,18 @@ class IntCode
 
     public function init(string $code, $input = null)
     {
+        $this->code = $code;
         $this->memory = explode(',', $code);
         $this->input = (array)$input;
         $this->output = null;
         $this->address = 0;
         $this->running = false;
         $this->relativeBase = 0;
+    }
+
+    public function reset($input = null)
+    {
+        $this->init($this->code, $input);
     }
 
     /**
