@@ -88,9 +88,10 @@ class IntCode
         $this->relativeBase = 0;
     }
 
-    public function reset($input = null)
+    public function reset($input = null): IntCode
     {
         $this->init($this->code, $input);
+        return $this;
     }
 
     /**
@@ -99,7 +100,7 @@ class IntCode
      * @throws Exception
      * @throws InputNecessaryException
      */
-    public function run()
+    public function run(): IntCode
     {
         $this->running = true;
         $hasOutput = false;
@@ -135,11 +136,9 @@ class IntCode
         if ($hasOutput) {
             $this->hasHaltOutput = true;
         }
-
         $this->running = false;
 
-        // Print output
-        //print_r($this->output);
+        return $this;
     }
 
     public function setInput(array $input)
