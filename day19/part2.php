@@ -1,7 +1,6 @@
 <?php
 
 require_once('../common/common.php');
-require_once('../common/image.php');
 require_once('../common/IntCode.php');
 
 use IntCode\IntCode;
