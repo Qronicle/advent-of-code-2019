@@ -100,13 +100,16 @@ class IntCode
      * @throws Exception
      * @throws InputNecessaryException
      */
-    public function run(): IntCode
+    public function run(int $ticks = -1): IntCode
     {
         $this->running = true;
         $hasOutput = false;
+        $tick = 0;
 
         // Do as long as the operation doesn't halt the programme
         do {
+            $tick++;
+
             // Prepare the operation & arguments
             $opCode = $this->getMemoryValueAt($this->address);
             $operation = $this->getOperation($opCode);
@@ -126,24 +129,38 @@ class IntCode
                 $hasOutput = true;
                 if ($this->haltOnOutput) {
                     $this->hasHaltOutput = true;
-                    return;
+                    return $this;
                 }
             } elseif (!$operation->halt()) {
                 $hasOutput = false;
             }
-        } while (!$operation->halt());
+        } while (!$operation->halt() && ($ticks < 0 || $tick < $ticks));
 
-        if ($hasOutput) {
-            $this->hasHaltOutput = true;
+        if ($operation->halt()) {
+            if ($hasOutput) {
+                $this->hasHaltOutput = true;
+            }
+            $this->running = false;
         }
-        $this->running = false;
 
         return $this;
+    }
+
+    public function tick()
+    {
+        return $this->run(1);
     }
 
     public function setInput(array $input)
     {
         $this->input = $input;
+    }
+
+    public function addInput(array $input)
+    {
+        foreach ($input as $val) {
+            $this->input[] = $val;
+        }
     }
 
     public function setHaltOnOutput(bool $halt = true)
