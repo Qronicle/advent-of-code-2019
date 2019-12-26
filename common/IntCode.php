@@ -151,6 +151,25 @@ class IntCode
         return $this->run(1);
     }
 
+    public function serialize(): string
+    {
+        return json_encode([
+            'relativeBase' => $this->relativeBase,
+            'address'      => $this->address,
+            'input'        => $this->input,
+            'output'       => $this->output,
+            'memory'       => $this->memory,
+        ]);
+    }
+
+    public function unserialize(string $string)
+    {
+        $data = json_decode($string);
+        foreach ($data as $key => $value) {
+            $this->$key = $value;
+        }
+    }
+
     public function setInput(array $input)
     {
         $this->input = $input;
