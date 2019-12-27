@@ -1,10 +1,9 @@
 <?php
 
-//ini_set('memory_limit', '4092M');
 require_once('../common/common.php');
 require_once('../common/image.php');
 
-$input = file_get_contents('input.txt');
+$input = file_get_contents('input2.txt');
 
 $maze = new Maze($input);
 echo "\nLength: " . $maze->run();
@@ -19,8 +18,8 @@ class Maze
     /** @var array */
     protected $tiles;
 
-    /** @var int[] */
-    protected $startPosition;
+    /** @var array[] */
+    protected $startPositions;
 
     /** @var bool[] */
     protected $unlocked;
@@ -57,45 +56,49 @@ class Maze
     {
         $minSteps = 0;
         $weights = [];
-        $nodes = [['position' => '*', 'steps' => 0, 'keys' => [], 'tmp' => []]];
+        $nodes = [['positions' => ['@0', '@1', '@2', '@3'], 'steps' => 0, 'keys' => [], 'tmp' => []]];
         $finishedNode = null;
         while (true) {
             $endNodes = [];
             $newMinSteps = $finishedNode ? $finishedNode['steps'] : null;
             foreach ($nodes as $node) {
-                if ($node['steps'] > $minSteps) {
-                    if (!$finishedNode) {
-                        $endNodes[] = $node;
-                        $newMinSteps = is_null($newMinSteps) ? $node['steps'] : min($node['steps'], $newMinSteps);
-                    }
-                    continue;
-                }
-                foreach ($this->keyTree[$node['position']] as $targetKey => $targetData) {
-                    // Check whether we can access this key
-                    if (array_diff($targetData->doors, $node['keys'])) continue;
-                    // Check whether we want this key
-                    if (in_array(strtoupper($targetKey), $node['keys'])) continue;
-                    // Try and run to this key maybe!
-                    $newSteps = $node['steps'] + $targetData->steps;
-                    $newKeys = array_unique(array_merge($node['keys'],array_map('strtoupper', $targetData->keys)));
-                    sort($newKeys);
-                    $weightKey = $targetKey . '_' . implode('', $newKeys);
-                    if (!isset($weights[$weightKey]) || $newSteps < $weights[$weightKey]) {
-                        $weights[$weightKey] = $newSteps;
-                        $newNode = ['position' => $targetKey, 'steps' => $newSteps, 'keys' => $newKeys, 'tmp' => $node['tmp']];
-                        foreach ($targetData->keys as $key) {
-                            if (!in_array($key, $newNode['tmp'])) {
-                                $newNode['tmp'][] = $key;
-                            }
+                foreach ($node['positions'] as $robot => $position) {
+                    if ($node['steps'] > $minSteps) {
+                        if (!$finishedNode) {
+                            $endNodes[implode('', $node['tmp'])] = $node;
+                            $newMinSteps = is_null($newMinSteps) ? $node['steps'] : min($node['steps'], $newMinSteps);
                         }
-                        $newMinSteps = is_null($newMinSteps) ? $newSteps : min($newSteps, $newMinSteps);
-                        if (count($newKeys) == $this->numKeys) {
-                            if (!$finishedNode || $newSteps < $finishedNode['steps']) {
-                                echo "Found end at $newSteps\n";
-                                $finishedNode = $newNode;
+                        continue;
+                    }
+                    foreach ($this->keyTree[$position] as $targetKey => $targetData) {
+                        // Check whether we can access this key
+                        if (array_diff($targetData->doors, $node['keys'])) continue;
+                        // Check whether we want this key
+                        if (in_array(strtoupper($targetKey), $node['keys'])) continue;
+                        // Try and run to this key maybe!
+                        $newSteps = $node['steps'] + $targetData->steps;
+                        $newKeys = array_unique(array_merge($node['keys'],array_map('strtoupper', $targetData->keys)));
+                        sort($newKeys);
+                        $newPositions = $node['positions'];
+                        $newPositions[$robot] = $targetKey;
+                        $weightKey = implode('', $newPositions) . '_' . implode('', $newKeys);
+                        if (!isset($weights[$weightKey]) || $newSteps < $weights[$weightKey]) {
+                            $weights[$weightKey] = $newSteps;
+                            $newNode = ['positions' => $newPositions, 'steps' => $newSteps, 'keys' => $newKeys, 'tmp' => $node['tmp']];
+                            foreach ($targetData->keys as $key) {
+                                if (!in_array($key, $newNode['tmp'])) {
+                                    $newNode['tmp'][] = $key;
+                                }
                             }
-                        } else {
-                            $endNodes[] = $newNode;
+                            $newMinSteps = is_null($newMinSteps) ? $newSteps : min($newSteps, $newMinSteps);
+                            if (count($newKeys) == $this->numKeys) {
+                                if (!$finishedNode || $newSteps < $finishedNode['steps']) {
+                                    echo "Found end at $newSteps\n";
+                                    $finishedNode = $newNode;
+                                }
+                            } else {
+                                $endNodes[implode('', $newNode['tmp'])] = $newNode;
+                            }
                         }
                     }
                 }
@@ -124,16 +127,19 @@ class Maze
 
     protected function createTree()
     {
-        $this->keyTree = ['*' => []];
+        $this->keyTree = [];
 
-        // First we create a node for the start position
-        $targets = $this->getAllPathsFromPoint($this->startPosition, true);
-        foreach ($targets as $targetKey => $target) {
-            $this->keyTree['*'][$targetKey] = (object)[
-                'keys'  => $target->keys,
-                'doors' => $target->doors,
-                'steps' => $target->length,
-            ];
+        // First we create nodes for the start positions
+        foreach ($this->startPositions as $i => $startPosition) {
+            $key = "@$i";
+            $targets = $this->getAllPathsFromPoint($startPosition);
+            foreach ($targets as $targetKey => $target) {
+                $this->keyTree[$key][$targetKey] = (object)[
+                    'keys'  => $target->keys,
+                    'doors' => $target->doors,
+                    'steps' => $target->length,
+                ];
+            }
         }
 
         // Then we calculate all viable routes from all keys to all other keys
@@ -162,6 +168,7 @@ class Maze
         }
         $steps = 0;
         $points = [$start];
+        $paths = [];
         while (++$steps) {
             $endPoints = [];
             foreach ($points as $point) {
@@ -239,7 +246,7 @@ class Maze
         foreach ($lines as $y => $line) {
             foreach (str_split($line) as $x => $char) {
                 if ($char == '@') {
-                    $this->startPosition = [$x, $y];
+                    $this->startPositions[] = [$x, $y];
                     $char = self::TILE_FLOOR;
                 }
                 if (ord($char) > 64 && ord($char) < 91) {
